@@ -1,3 +1,5 @@
+use esp_idf_hal::adc::attenuation::DB_2_5;
+use esp_idf_hal::adc::attenuation::DB_6;
 use esp_idf_hal::adc::oneshot::config::AdcChannelConfig;
 use esp_idf_hal::delay::Ets;
 use esp_idf_hal::gpio::*;
@@ -62,7 +64,7 @@ fn main() {
      // configuring pin to analog read, you can regulate the adc input voltage range depending on your need
      // for this example we use the attenuation of 11db which sets the input voltage range to around 0-3.6V
      let config = AdcChannelConfig {
-         attenuation: DB_11,
+         attenuation: DB_6,
          ..Default::default()
      };
      let mut adc_pin = AdcChannelDriver::new(
@@ -77,8 +79,8 @@ fn main() {
     // -----------------------------------
     loop {
         let moisture_value = adc.read(&mut adc_pin).unwrap();
-        let moisture_min = 700;
-        let moisture_max = 1578;
+        let moisture_min = 900;
+        let moisture_max = 1412;
         let moisture_step = (moisture_max - moisture_min) / 5;
         let moisture_level = match moisture_value {
             v if v <= moisture_min + moisture_step * 1 => "Very wet",  // Level 1
