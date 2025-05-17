@@ -1,4 +1,3 @@
-use esp_idf_hal::adc::attenuation::DB_2_5;
 use esp_idf_hal::adc::attenuation::DB_6;
 use esp_idf_hal::adc::oneshot::config::AdcChannelConfig;
 use esp_idf_hal::delay::Ets;
@@ -10,7 +9,6 @@ use hd44780_driver::{Display, HD44780};
 use std::{thread, time::Duration};
 use esp_idf_hal::adc::oneshot::{AdcDriver, AdcChannelDriver};
 use esp_idf_sys as _;
-use esp_idf_svc::hal::adc::{attenuation::DB_11};
 
 fn main() {
     // ESP-IDF 的必要初始化（載入韌體修補）
