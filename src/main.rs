@@ -1,3 +1,4 @@
+use esp_idf_hal::adc::oneshot::config::AdcChannelConfig;
 use esp_idf_hal::delay::Ets;
 use esp_idf_hal::gpio::*;
 use esp_idf_hal::i2c::*;
@@ -5,6 +6,9 @@ use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
 use hd44780_driver::{Display, HD44780};
 use std::{thread, time::Duration};
+use esp_idf_hal::adc::oneshot::{AdcDriver, AdcChannelDriver};
+use esp_idf_sys as _;
+use esp_idf_svc::hal::adc::{attenuation::DB_11};
 
 fn main() {
     // ESP-IDF 的必要初始化（載入韌體修補）
@@ -50,21 +54,52 @@ fn main() {
     lcd.write_str("Status: HIGH", &mut delay).unwrap();
 
     // -----------------------------------
+    // 初始化土壤濕度偵測器
+    // 接在 GPIO36
+    // -----------------------------------
+    let adc = AdcDriver::new(peripherals.adc1).unwrap();
+
+     // configuring pin to analog read, you can regulate the adc input voltage range depending on your need
+     // for this example we use the attenuation of 11db which sets the input voltage range to around 0-3.6V
+     let config = AdcChannelConfig {
+         attenuation: DB_11,
+         ..Default::default()
+     };
+     let mut adc_pin = AdcChannelDriver::new(
+        &adc,
+        peripherals.pins.gpio36,
+        &config
+    )
+    .unwrap();
+
+    // -----------------------------------
     // 主迴圈：每秒切換 LED 與 LCD 顯示內容
     // -----------------------------------
     loop {
-        // LED 打開，LCD 顯示 Daisy
+        let moisture_value = adc.read(&mut adc_pin).unwrap();
+        let moisture_min = 700;
+        let moisture_max = 1578;
+        let moisture_step = (moisture_max - moisture_min) / 5;
+        let moisture_level = match moisture_value {
+            v if v <= moisture_min + moisture_step * 1 => "Very wet",  // Level 1
+            v if v <= moisture_min + moisture_step * 2 => "Wet",       // Level 2
+            v if v <= moisture_min + moisture_step * 3 => "Normal",    // Level 3
+            v if v <= moisture_min + moisture_step * 4 => "Dry",       // Level 4
+            _ => "Very dry",                                                // Level 5
+        };
+
+        // LED 打開，LCD 顯示 moisture
         led.set_high().unwrap();
-        println!("HIGH");
         lcd.clear(&mut delay).unwrap();
-        lcd.write_str("Daisy", &mut delay).unwrap();
+        lcd.write_str(
+            &format!("{}({})", moisture_level, moisture_value),
+            &mut delay
+        )
+        .unwrap();
         thread::sleep(Duration::from_secs(1));
 
-        // LED 關閉，LCD 顯示 Paxon
+        // LED 關閉
         led.set_low().unwrap();
-        println!("LOW");
-        lcd.clear(&mut delay).unwrap();
-        lcd.write_str("Paxon", &mut delay).unwrap();
         thread::sleep(Duration::from_secs(1));
     }
 }
