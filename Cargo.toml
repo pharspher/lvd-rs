@@ -1,0 +1,33 @@
+[package]
+name = "lavender"
+version = "0.1.0"
+authors = ["roger.chuang <Roger.Chuang@commscope.com>"]
+edition = "2021"
+resolver = "2"
+rust-version = "1.77"
+
+[[bin]]
+name = "lavender"
+harness = false # do not use the built in cargo test harness -> resolve rust-analyzer errors
+
+[profile.release]
+opt-level = "s"
+
+[profile.dev]
+debug = true    # Symbols are nice and they don't increase the size on Flash
+opt-level = "z"
+
+[features]
+default = []
+
+experimental = ["esp-idf-svc/experimental"]
+
+[dependencies]
+log = "0.4"
+esp-idf-hal = "0.45.2"
+esp-idf-svc = "0.51"
+esp-idf-sys = "0.36.1"
+hd44780-driver = "0.4.0"
+
+[build-dependencies]
+embuild = "0.33"
