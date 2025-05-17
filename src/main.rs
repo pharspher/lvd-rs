@@ -6,7 +6,9 @@ use esp_idf_hal::i2c::*;
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
-use hd44780_driver::{Display, HD44780};
+use hd44780_driver::bus::I2CBus;
+use hd44780_driver::HD44780;
+use std::marker::PhantomData;
 use std::{thread, time::Duration};
 use esp_idf_hal::adc::oneshot::{AdcDriver, AdcChannelDriver};
 use esp_idf_sys as _;
@@ -18,41 +20,11 @@ fn main() {
     // 取得 ESP32 所有可用的硬體外設（如 GPIO、I2C 控制器）
     let peripherals = Peripherals::take().unwrap();
 
-    // -----------------------------------
-    // 初始化 GPIO2 作為輸出腳位（通常接 LED）
-    // -----------------------------------
     let mut led = Led::new(peripherals.pins.gpio2);
-
-    // -----------------------------------
-    // 初始化 I2C 通訊，用來控制 LCD
-    // SDA 接在 GPIO21，SCL 接在 GPIO22
-    // -----------------------------------
-    let i2c_config = config::Config::default();
-    let i2c = I2cDriver::new(
+    let mut lcd = Lcd::new(
         peripherals.i2c0,
-        peripherals.pins.gpio21, // SDA
-        peripherals.pins.gpio22, // SCL
-        &i2c_config,
-    )
-    .unwrap();
-
-    // 建立延遲器（必要給 LCD 控制）
-    let mut delay = Ets;
-
-    // -----------------------------------
-    // 初始化 LCD (透過 I2C)
-    // 裝置位址是 0x27（I2C LCD 常見位址）
-    // -----------------------------------
-    let mut lcd = HD44780::new_i2c(i2c, 0x27, &mut delay).unwrap();
-
-    // 重設並清除 LCD 畫面
-    lcd.reset(&mut delay).unwrap();
-    lcd.clear(&mut delay).unwrap();
-    lcd.set_display(Display::On, &mut delay).unwrap();
-
-    // 初始畫面顯示
-    lcd.clear(&mut delay).unwrap();
-    lcd.write_str("Status: HIGH", &mut delay).unwrap();
+        peripherals.pins.gpio21,
+        peripherals.pins.gpio22);
 
     // -----------------------------------
     // 初始化土壤濕度偵測器
@@ -89,17 +61,10 @@ fn main() {
             _ => "Very dry",                                                // Level 5
         };
 
-        // LED 打開，LCD 顯示 moisture
         led.on();
-        lcd.clear(&mut delay).unwrap();
-        lcd.write_str(
-            &format!("{}({})", moisture_level, moisture_value),
-            &mut delay
-        )
-        .unwrap();
+        lcd.display(&format!("{}({})", moisture_level, moisture_value));
         thread::sleep(Duration::from_secs(1));
 
-        // LED 關閉
         led.off();
         thread::sleep(Duration::from_secs(1));
     }
@@ -124,5 +89,40 @@ impl<T: OutputPin> Led<T> {
 
     pub fn off(&mut self) {
         self.pin_driver.set_low().unwrap();
+    }
+}
+    
+pub struct Lcd<T: I2c, U: IOPin, V: IOPin> {
+    lcd: HD44780<I2CBus<I2cDriver<'static>>>,
+    delay: Ets,
+    _t: PhantomData<T>,
+    _u: PhantomData<U>,
+    _v: PhantomData<V>,
+}
+
+impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
+    pub fn new(
+        i2c: impl Peripheral<P = T> + 'static,
+        sda: impl Peripheral<P = U> + 'static,
+        scl: impl Peripheral<P = V> + 'static
+    ) -> Self {
+        let i2c = I2cDriver::new(i2c, sda, scl, &config::Config::default()).unwrap();
+
+        let mut ets = Ets;
+        let mut lcd = HD44780::new_i2c(i2c, 0x27, &mut ets).unwrap();
+        lcd.reset(&mut ets).unwrap();
+
+        Self {
+            lcd: lcd,
+            delay: ets,
+            _t: PhantomData,
+            _u: PhantomData,
+            _v: PhantomData
+        }
+    }
+
+    pub fn display(&mut self, str: &str) {
+        self.lcd.clear(&mut self.delay).unwrap();
+        self.lcd.write_str(str, &mut self.delay).unwrap();
     }
 }
