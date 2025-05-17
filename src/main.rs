@@ -1,5 +1,6 @@
 use esp_idf_hal::adc::attenuation::DB_6;
 use esp_idf_hal::adc::oneshot::config::AdcChannelConfig;
+use esp_idf_hal::adc::Adc;
 use esp_idf_hal::delay::Ets;
 use esp_idf_hal::gpio::*;
 use esp_idf_hal::i2c::*;
@@ -8,16 +9,16 @@ use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
 use hd44780_driver::bus::I2CBus;
 use hd44780_driver::HD44780;
+use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::{thread, time::Duration};
 use esp_idf_hal::adc::oneshot::{AdcDriver, AdcChannelDriver};
 use esp_idf_sys as _;
+use std::fmt;
 
 fn main() {
-    // ESP-IDF 的必要初始化（載入韌體修補）
     esp_idf_sys::link_patches();
 
-    // 取得 ESP32 所有可用的硬體外設（如 GPIO、I2C 控制器）
     let peripherals = Peripherals::take().unwrap();
 
     let mut led = Led::new(peripherals.pins.gpio2);
@@ -26,40 +27,12 @@ fn main() {
         peripherals.pins.gpio21,
         peripherals.pins.gpio22);
 
-    // -----------------------------------
-    // 初始化土壤濕度偵測器
-    // 接在 GPIO36
-    // -----------------------------------
     let adc = AdcDriver::new(peripherals.adc1).unwrap();
+    let mut moisture_sensor = MoistureSensor::new(&adc, peripherals.pins.gpio36);
 
-     // configuring pin to analog read, you can regulate the adc input voltage range depending on your need
-     // for this example we use the attenuation of 11db which sets the input voltage range to around 0-3.6V
-     let config = AdcChannelConfig {
-         attenuation: DB_6,
-         ..Default::default()
-     };
-     let mut adc_pin = AdcChannelDriver::new(
-        &adc,
-        peripherals.pins.gpio36,
-        &config
-    )
-    .unwrap();
-
-    // -----------------------------------
-    // 主迴圈：每秒切換 LED 與 LCD 顯示內容
-    // -----------------------------------
     loop {
-        let moisture_value = adc.read(&mut adc_pin).unwrap();
-        let moisture_min = 900;
-        let moisture_max = 1412;
-        let moisture_step = (moisture_max - moisture_min) / 5;
-        let moisture_level = match moisture_value {
-            v if v <= moisture_min + moisture_step * 1 => "Very wet",  // Level 1
-            v if v <= moisture_min + moisture_step * 2 => "Wet",       // Level 2
-            v if v <= moisture_min + moisture_step * 3 => "Normal",    // Level 3
-            v if v <= moisture_min + moisture_step * 4 => "Dry",       // Level 4
-            _ => "Very dry",                                                // Level 5
-        };
+        let moisture_value = moisture_sensor.read_value();
+        let moisture_level = moisture_sensor.read_level();
 
         led.on();
         lcd.display(&format!("{}({})", moisture_level, moisture_value));
@@ -124,5 +97,73 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
     pub fn display(&mut self, str: &str) {
         self.lcd.clear(&mut self.delay).unwrap();
         self.lcd.write_str(str, &mut self.delay).unwrap();
+    }
+}
+
+pub struct MoistureSensor<'a, A, P>
+where
+    A: Adc + 'a,
+    P: ADCPin + 'a,
+    &'a AdcDriver<'a, A>: Borrow<AdcDriver<'a, <P as ADCPin>::Adc>>
+{
+    adc: &'a AdcDriver<'a, A>,
+    channel: AdcChannelDriver<'a, P, &'a AdcDriver<'a, A>>,
+}
+
+impl<'a, A, P> MoistureSensor<'a, A, P>
+where
+    A: Adc + 'a,
+    P: ADCPin + 'a,
+    &'a AdcDriver<'a, A>: Borrow<AdcDriver<'a, <P as ADCPin>::Adc>>
+{
+    pub fn new(adc: &'a AdcDriver<'a, A>, pin: P) -> Self {
+        let config = AdcChannelConfig {
+            attenuation: DB_6,
+            ..Default::default()
+        };
+        let channel = AdcChannelDriver::new(adc, pin, &config).unwrap();
+        Self { adc, channel }
+    }
+
+    pub fn read_value(&mut self) -> u16 {
+        self.adc.read(&mut self.channel).unwrap()
+    }
+
+    pub fn read_level(&mut self) -> MoistureLevel {
+        let moisture_value = self.read_value();
+
+        let moisture_min = 900;
+        let moisture_max = 1412;
+        let moisture_step = (moisture_max - moisture_min) / 5;
+
+        match moisture_value {
+            v if v <= moisture_min + moisture_step * 1 => MoistureLevel::VeryWet,
+            v if v <= moisture_min + moisture_step * 2 => MoistureLevel::Wet,
+            v if v <= moisture_min + moisture_step * 3 => MoistureLevel::Normal,
+            v if v <= moisture_min + moisture_step * 4 => MoistureLevel::Dry,
+            _ => MoistureLevel::VeryDry
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum MoistureLevel {
+    VeryWet,
+    Wet,
+    Normal,
+    Dry,
+    VeryDry,
+}
+
+impl fmt::Display for MoistureLevel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let label = match self {
+            MoistureLevel::VeryWet => "Very wet",
+            MoistureLevel::Wet => "Wet",
+            MoistureLevel::Normal => "Normal",
+            MoistureLevel::Dry => "Dry",
+            MoistureLevel::VeryDry => "Very dry",
+        };
+        write!(f, "{}", label)
     }
 }
