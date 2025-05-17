@@ -3,6 +3,7 @@ use esp_idf_hal::adc::oneshot::config::AdcChannelConfig;
 use esp_idf_hal::delay::Ets;
 use esp_idf_hal::gpio::*;
 use esp_idf_hal::i2c::*;
+use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
 use hd44780_driver::{Display, HD44780};
@@ -20,7 +21,7 @@ fn main() {
     // -----------------------------------
     // 初始化 GPIO2 作為輸出腳位（通常接 LED）
     // -----------------------------------
-    let mut led = PinDriver::output(peripherals.pins.gpio2).unwrap();
+    let mut led = Led::new(peripherals.pins.gpio2);
 
     // -----------------------------------
     // 初始化 I2C 通訊，用來控制 LCD
@@ -89,7 +90,7 @@ fn main() {
         };
 
         // LED 打開，LCD 顯示 moisture
-        led.set_high().unwrap();
+        led.on();
         lcd.clear(&mut delay).unwrap();
         lcd.write_str(
             &format!("{}({})", moisture_level, moisture_value),
@@ -99,7 +100,29 @@ fn main() {
         thread::sleep(Duration::from_secs(1));
 
         // LED 關閉
-        led.set_low().unwrap();
+        led.off();
         thread::sleep(Duration::from_secs(1));
+    }
+}
+
+pub struct Led<T: OutputPin> {
+    pin_driver: PinDriver<'static, T, Output>
+}
+
+impl<T: OutputPin> Led<T> {
+    pub fn new(pin: impl Peripheral<P = T> + 'static) -> Self {
+        let driver = PinDriver::output(pin).unwrap();
+
+        Self {
+            pin_driver: driver
+        }
+    }
+
+    pub fn on(&mut self) {
+        self.pin_driver.set_high().unwrap();
+    }
+
+    pub fn off(&mut self) {
+        self.pin_driver.set_low().unwrap();
     }
 }
