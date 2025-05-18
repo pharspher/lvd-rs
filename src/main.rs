@@ -37,13 +37,14 @@ fn main() {
         led.on();
         match moisture_sensor.read_avg() {
             Some((m_value, m_level)) => {
-                lcd.display(&format!("{}({})", m_level, m_value));
+                lcd.display_two_lines(&format!("{}({})", m_level, m_value), &pump.elapsed_since_last_on_str());
                 if m_level >= MoistureLevel::VeryDry {
                     pump.turn_on();
                     println!("MOTOR ON");
+                    lcd.display_second_line(&pump.elapsed_since_last_on_str());
                 }
                 Ets::delay_ms(1000);
-                pump.turn_off();;
+                pump.turn_off();
             },
             None => {
 
@@ -108,9 +109,31 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
         }
     }
 
-    pub fn display(&mut self, str: &str) {
+    pub fn display_first_line(&mut self, line1: &str) {
+        self.lcd.set_cursor_pos(0x00, &mut self.delay).unwrap();
+        let mut s = line1.chars().take(16).collect::<String>();
+        while s.len() < 16 {
+            s.push(' ');
+        }
+        self.lcd.write_str(&s, &mut self.delay).unwrap();
+    }
+
+    pub fn display_second_line(&mut self, line2: &str) {
+        self.lcd.set_cursor_pos(0x40, &mut self.delay).unwrap();
+        let mut s = line2.chars().take(16).collect::<String>();
+        while s.len() < 16 {
+            s.push(' ');
+        }
+        self.lcd.write_str(&s, &mut self.delay).unwrap();
+    }
+
+    pub fn display_two_lines(&mut self, line1: &str, line2: &str) {
         self.lcd.clear(&mut self.delay).unwrap();
-        self.lcd.write_str(str, &mut self.delay).unwrap();
+        self.lcd.set_cursor_pos(0, &mut self.delay).unwrap();
+        self.lcd.write_str(line1, &mut self.delay).unwrap();
+
+        self.lcd.set_cursor_pos(0x40, &mut self.delay).unwrap();
+        self.lcd.write_str(line2, &mut self.delay).unwrap();
     }
 }
 
@@ -230,6 +253,22 @@ impl<T: OutputPin> Pump<T> {
     pub fn last_on_time_str(&self) -> String {
         match self.last_on {
             Some(dt) => dt.format("%H:%M:%S").to_string(),
+            None => "Never".to_string(),
+        }
+    }
+
+    pub fn elapsed_since_last_on_str(&self) -> String {
+        match self.time_since_last_on() {
+            Some(duration) => {
+                let secs = duration.num_seconds();
+                if secs < 60 {
+                    format!("{} sec ago", secs)
+                } else if secs < 3600 {
+                    format!("{} min ago", secs / 60)
+                } else {
+                    format!("{} hr ago", secs / 3600)
+                }
+            }
             None => "Never".to_string(),
         }
     }
