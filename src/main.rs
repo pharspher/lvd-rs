@@ -38,11 +38,13 @@ fn main() {
         match moisture_sensor.read_avg() {
             Some((m_value, m_level)) => {
                 lcd.display_two_lines(&format!("{}({})", m_level, m_value), &pump.elapsed_since_last_on_str());
+
                 if m_level >= MoistureLevel::VeryDry {
                     pump.turn_on();
                     println!("MOTOR ON");
                     lcd.display_second_line(&pump.elapsed_since_last_on_str());
                 }
+
                 Ets::delay_ms(1000);
                 pump.turn_off();
             },
