@@ -15,6 +15,7 @@ use std::{thread, time::Duration};
 use esp_idf_hal::adc::oneshot::{AdcDriver, AdcChannelDriver};
 use esp_idf_sys as _;
 use std::fmt;
+use chrono::{DateTime, Local, Duration as ChronoDuration};
 
 fn main() {
     esp_idf_sys::link_patches();
@@ -30,12 +31,25 @@ fn main() {
     let adc = AdcDriver::new(peripherals.adc1).unwrap();
     let mut moisture_sensor = MoistureSensor::new(&adc, peripherals.pins.gpio36);
 
-    loop {
-        let moisture_value = moisture_sensor.read_value();
-        let moisture_level = moisture_sensor.read_level();
+    let mut pump = Pump::new(peripherals.pins.gpio26);
 
+    loop {
         led.on();
-        lcd.display(&format!("{}({})", moisture_level, moisture_value));
+        match moisture_sensor.read_avg() {
+            Some((m_value, m_level)) => {
+                lcd.display(&format!("{}({})", m_level, m_value));
+                if m_level >= MoistureLevel::VeryDry {
+                    pump.turn_on();
+                    println!("MOTOR ON");
+                }
+                Ets::delay_ms(1000);
+                pump.turn_off();;
+            },
+            None => {
+
+            }
+        }
+
         thread::sleep(Duration::from_secs(1));
 
         led.off();
@@ -108,6 +122,8 @@ where
 {
     adc: &'a AdcDriver<'a, A>,
     channel: AdcChannelDriver<'a, P, &'a AdcDriver<'a, A>>,
+    history: [u16; 3],
+    curr_pos: usize
 }
 
 impl<'a, A, P> MoistureSensor<'a, A, P>
@@ -122,21 +138,35 @@ where
             ..Default::default()
         };
         let channel = AdcChannelDriver::new(adc, pin, &config).unwrap();
-        Self { adc, channel }
+        Self { adc, channel, history: [0; 3], curr_pos: 0 }
     }
 
-    pub fn read_value(&mut self) -> u16 {
-        self.adc.read(&mut self.channel).unwrap()
+    pub fn read(&mut self) -> (u16, MoistureLevel) {
+        let value = self.adc.read(&mut self.channel).unwrap();
+        (value, self.to_moisture_level(value))
     }
 
-    pub fn read_level(&mut self) -> MoistureLevel {
-        let moisture_value = self.read_value();
+    pub fn read_avg(&mut self) -> Option<(u16, MoistureLevel)> {
+        let value = self.adc.read(&mut self.channel).unwrap();
+        self.history[self.curr_pos] = value;
+        self.curr_pos = (self.curr_pos + 1) % self.history.len();
 
+        if self.history.iter().any(|&v| v == 0) {
+            return None;
+        }
+        
+        let sum: u32 = self.history.iter().map(|&v| v as u32).sum();
+        let avg = (sum / self.history.len() as u32) as u16;        
+
+        Some((avg, self.to_moisture_level(avg)))
+    }
+
+    fn to_moisture_level(&self, value: u16) -> MoistureLevel {
         let moisture_min = 900;
         let moisture_max = 1412;
         let moisture_step = (moisture_max - moisture_min) / 5;
 
-        match moisture_value {
+        match value {
             v if v <= moisture_min + moisture_step * 1 => MoistureLevel::VeryWet,
             v if v <= moisture_min + moisture_step * 2 => MoistureLevel::Wet,
             v if v <= moisture_min + moisture_step * 3 => MoistureLevel::Normal,
@@ -146,7 +176,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub enum MoistureLevel {
     VeryWet,
     Wet,
@@ -165,5 +195,42 @@ impl fmt::Display for MoistureLevel {
             MoistureLevel::VeryDry => "Very dry",
         };
         write!(f, "{}", label)
+    }
+}
+
+pub struct Pump<T: OutputPin> {
+    pin: PinDriver<'static, T, Output>,
+    last_on: Option<DateTime<Local>>,
+}
+
+impl<T: OutputPin> Pump<T> {
+    pub fn new(pin: impl Peripheral<P = T> + 'static) -> Self {
+        let mut driver = PinDriver::output(pin).unwrap();
+        driver.set_low().unwrap();
+
+        Self {
+            pin: driver,
+            last_on: None,
+        }
+    }
+
+    pub fn turn_on(&mut self) {
+        self.pin.set_high().unwrap();
+        self.last_on = Some(Local::now());
+    }
+
+    pub fn turn_off(&mut self) {
+        self.pin.set_low().unwrap();
+    }
+
+    pub fn time_since_last_on(&self) -> Option<ChronoDuration> {
+        self.last_on.map(|t| Local::now() - t)
+    }
+
+    pub fn last_on_time_str(&self) -> String {
+        match self.last_on {
+            Some(dt) => dt.format("%H:%M:%S").to_string(),
+            None => "Never".to_string(),
+        }
     }
 }
