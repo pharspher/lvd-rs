@@ -37,12 +37,12 @@ fn main() {
         led.on();
         match moisture_sensor.read_avg() {
             Some((m_value, m_level)) => {
-                lcd.display_two_lines(&format!("{}({})", m_level, m_value), &pump.elapsed_since_last_on_str());
+                lcd.display_two_lines_incremental(&format!("{}({})", m_level, m_value), &pump.elapsed_since_last_on_str());
 
                 if m_level >= MoistureLevel::VeryDry {
                     pump.turn_on();
                     println!("MOTOR ON");
-                    lcd.display_second_line(&pump.elapsed_since_last_on_str());
+                    lcd.display_second_line_incremental(&pump.elapsed_since_last_on_str());
                 }
 
                 Ets::delay_ms(1000);
@@ -85,6 +85,8 @@ impl<T: OutputPin> Led<T> {
 pub struct Lcd<T: I2c, U: IOPin, V: IOPin> {
     lcd: HD44780<I2CBus<I2cDriver<'static>>>,
     delay: Ets,
+    prev_line1: [char; 16],
+    prev_line2: [char; 16],
     _t: PhantomData<T>,
     _u: PhantomData<U>,
     _v: PhantomData<V>,
@@ -94,48 +96,59 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
     pub fn new(
         i2c: impl Peripheral<P = T> + 'static,
         sda: impl Peripheral<P = U> + 'static,
-        scl: impl Peripheral<P = V> + 'static
+        scl: impl Peripheral<P = V> + 'static,
     ) -> Self {
         let i2c = I2cDriver::new(i2c, sda, scl, &config::Config::default()).unwrap();
-
-        let mut ets = Ets;
-        let mut lcd = HD44780::new_i2c(i2c, 0x27, &mut ets).unwrap();
-        lcd.reset(&mut ets).unwrap();
+        let mut delay = Ets;
+        let mut lcd = HD44780::new_i2c(i2c, 0x27, &mut delay).unwrap();
+        lcd.reset(&mut delay).unwrap();
+        lcd.set_cursor_visibility(hd44780_driver::Cursor::Invisible, &mut delay).unwrap();
+        lcd.set_cursor_blink(hd44780_driver::CursorBlink::Off, &mut delay).unwrap();
 
         Self {
-            lcd: lcd,
-            delay: ets,
+            lcd,
+            delay,
+            prev_line1: [' '; 16],
+            prev_line2: [' '; 16],
             _t: PhantomData,
             _u: PhantomData,
-            _v: PhantomData
+            _v: PhantomData,
         }
     }
 
-    pub fn display_first_line(&mut self, line1: &str) {
-        self.lcd.set_cursor_pos(0x00, &mut self.delay).unwrap();
-        self.lcd.write_str(&Self::format_line(line1), &mut self.delay).unwrap();
-    }
-
-    pub fn display_second_line(&mut self, line2: &str) {
-        self.lcd.set_cursor_pos(0x40, &mut self.delay).unwrap();
-        self.lcd.write_str(&Self::format_line(&line2), &mut self.delay).unwrap();
-    }
-
-    pub fn display_two_lines(&mut self, line1: &str, line2: &str) {
-        self.lcd.clear(&mut self.delay).unwrap();
-        self.lcd.set_cursor_pos(0, &mut self.delay).unwrap();
-        self.lcd.write_str(line1, &mut self.delay).unwrap();
-
-        self.lcd.set_cursor_pos(0x40, &mut self.delay).unwrap();
-        self.lcd.write_str(line2, &mut self.delay).unwrap();
-    }
-
-    fn format_line(line: &str) -> String {
-        let mut s = line.chars().take(16).collect::<String>();
-        while s.len() < 16 {
-            s.push(' ');
+    pub fn display_first_line_incremental(&mut self, line: &str) {
+        let new_line = Self::format_line(line);
+        for (i, c) in new_line.iter().enumerate() {
+            if self.prev_line1[i] != *c {
+                self.lcd.set_cursor_pos(0x00 + i as u8, &mut self.delay).unwrap();
+                self.lcd.write_char(*c, &mut self.delay).unwrap();
+                self.prev_line1[i] = *c;
+            }
         }
-        s
+    }
+
+    pub fn display_second_line_incremental(&mut self, line: &str) {
+        let new_line = Self::format_line(line);
+        for (i, c) in new_line.iter().enumerate() {
+            if self.prev_line2[i] != *c {
+                self.lcd.set_cursor_pos(0x40 + i as u8, &mut self.delay).unwrap();
+                self.lcd.write_char(*c, &mut self.delay).unwrap();
+                self.prev_line2[i] = *c;
+            }
+        }
+    }
+
+    pub fn display_two_lines_incremental(&mut self, line1: &str, line2: &str) {
+        self.display_first_line_incremental(line1);
+        self.display_second_line_incremental(line2);
+    }
+
+    fn format_line(s: &str) -> [char; 16] {
+        let mut result = [' '; 16];
+        for (i, c) in s.chars().take(16).enumerate() {
+            result[i] = c;
+        }
+        result
     }
 }
 
@@ -213,11 +226,11 @@ pub enum MoistureLevel {
 impl fmt::Display for MoistureLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let label = match self {
-            MoistureLevel::VeryWet => "Very wet",
-            MoistureLevel::Wet => "Wet",
-            MoistureLevel::Normal => "Normal",
-            MoistureLevel::Dry => "Dry",
-            MoistureLevel::VeryDry => "Very dry",
+            MoistureLevel::VeryWet => "Super wet",
+            MoistureLevel::Wet => "Quite wet",
+            MoistureLevel::Normal => "Normal   ",
+            MoistureLevel::Dry => "Quite dry",
+            MoistureLevel::VeryDry => "Super dry",
         };
         write!(f, "{}", label)
     }
