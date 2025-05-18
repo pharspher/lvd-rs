@@ -113,20 +113,12 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
 
     pub fn display_first_line(&mut self, line1: &str) {
         self.lcd.set_cursor_pos(0x00, &mut self.delay).unwrap();
-        let mut s = line1.chars().take(16).collect::<String>();
-        while s.len() < 16 {
-            s.push(' ');
-        }
-        self.lcd.write_str(&s, &mut self.delay).unwrap();
+        self.lcd.write_str(&Self::format_line(line1), &mut self.delay).unwrap();
     }
 
     pub fn display_second_line(&mut self, line2: &str) {
         self.lcd.set_cursor_pos(0x40, &mut self.delay).unwrap();
-        let mut s = line2.chars().take(16).collect::<String>();
-        while s.len() < 16 {
-            s.push(' ');
-        }
-        self.lcd.write_str(&s, &mut self.delay).unwrap();
+        self.lcd.write_str(&Self::format_line(&line2), &mut self.delay).unwrap();
     }
 
     pub fn display_two_lines(&mut self, line1: &str, line2: &str) {
@@ -136,6 +128,14 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
 
         self.lcd.set_cursor_pos(0x40, &mut self.delay).unwrap();
         self.lcd.write_str(line2, &mut self.delay).unwrap();
+    }
+
+    fn format_line(line: &str) -> String {
+        let mut s = line.chars().take(16).collect::<String>();
+        while s.len() < 16 {
+            s.push(' ');
+        }
+        s
     }
 }
 
