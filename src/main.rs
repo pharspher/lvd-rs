@@ -28,29 +28,27 @@ fn main() {
         peripherals.pins.gpio21,
         peripherals.pins.gpio22,
     );
+    let mut pump = Pump::new(peripherals.pins.gpio26);
 
     let adc = AdcDriver::new(peripherals.adc1).unwrap();
-    let mut moisture_sensor = MoistureSensor::new(&adc, peripherals.pins.gpio36);
-
-    let mut pump = Pump::new(peripherals.pins.gpio26);
+    let mut moisture = MoistureSensor::new(&adc, peripherals.pins.gpio36);
 
     loop {
         led.on();
 
-        if let Some((m_value, m_level)) = moisture_sensor.read_avg() {
-            lcd.display_two_lines_incremental(
+        if let Some((m_value, m_level)) = moisture.read_avg() {
+            lcd.update_two_lines(
                 &format!("{}({})", m_level, m_value),
-                &pump.elapsed_since_last_on_str(),
+                &pump.time_since_last_on_str(),
             );
 
             if m_level >= MoistureLevel::VeryDry {
-                pump.turn_on();
-                println!("MOTOR ON");
-                lcd.display_second_line_incremental(&pump.elapsed_since_last_on_str());
+                pump.on();
+                lcd.update_second_line(&pump.time_since_last_on_str());
             }
 
             Ets::delay_ms(1000);
-            pump.turn_off();
+            pump.off();
         }
 
         thread::sleep(Duration::from_secs(1));
@@ -116,8 +114,8 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
         }
     }
 
-    pub fn display_first_line_incremental(&mut self, line: &str) {
-        let new_line = Self::format_line(line);
+    pub fn update_first_line(&mut self, line: &str) {
+        let new_line = Self::pad_line(line);
         for (i, c) in new_line.iter().enumerate() {
             if self.prev_line1[i] != *c {
                 self.lcd.set_cursor_pos(i as u8, &mut self.delay).unwrap();
@@ -127,8 +125,8 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
         }
     }
 
-    pub fn display_second_line_incremental(&mut self, line: &str) {
-        let new_line = Self::format_line(line);
+    pub fn update_second_line(&mut self, line: &str) {
+        let new_line = Self::pad_line(line);
         for (i, c) in new_line.iter().enumerate() {
             if self.prev_line2[i] != *c {
                 self.lcd
@@ -140,12 +138,12 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
         }
     }
 
-    pub fn display_two_lines_incremental(&mut self, line1: &str, line2: &str) {
-        self.display_first_line_incremental(line1);
-        self.display_second_line_incremental(line2);
+    pub fn update_two_lines(&mut self, line1: &str, line2: &str) {
+        self.update_first_line(line1);
+        self.update_second_line(line2);
     }
 
-    fn format_line(s: &str) -> [char; 16] {
+    fn pad_line(s: &str) -> [char; 16] {
         let mut result = [' '; 16];
         for (i, c) in s.chars().take(16).enumerate() {
             result[i] = c;
@@ -162,8 +160,8 @@ where
 {
     adc: &'a AdcDriver<'a, A>,
     channel: AdcChannelDriver<'a, P, &'a AdcDriver<'a, A>>,
-    history: [u16; 3],
-    curr_pos: usize,
+    recent_samples: [u16; 3],
+    sample_idx: usize,
 }
 
 impl<'a, A, P> MoistureSensor<'a, A, P>
@@ -181,43 +179,29 @@ where
         Self {
             adc,
             channel,
-            history: [0; 3],
-            curr_pos: 0,
+            recent_samples: [0; 3],
+            sample_idx: 0,
         }
     }
 
     pub fn read(&mut self) -> (u16, MoistureLevel) {
         let value = self.adc.read(&mut self.channel).unwrap();
-        (value, self.to_moisture_level(value))
+        (value, MoistureLevel::from_value(value))
     }
 
     pub fn read_avg(&mut self) -> Option<(u16, MoistureLevel)> {
         let value = self.adc.read(&mut self.channel).unwrap();
-        self.history[self.curr_pos] = value;
-        self.curr_pos = (self.curr_pos + 1) % self.history.len();
+        self.recent_samples[self.sample_idx] = value;
+        self.sample_idx = (self.sample_idx + 1) % self.recent_samples.len();
 
-        if self.history.iter().any(|&v| v == 0) {
+        if self.recent_samples.iter().any(|&v| v == 0) {
             return None;
         }
 
-        let sum: u32 = self.history.iter().map(|&v| v as u32).sum();
-        let avg = (sum / self.history.len() as u32) as u16;
+        let sum: u32 = self.recent_samples.iter().map(|&v| v as u32).sum();
+        let avg = (sum / self.recent_samples.len() as u32) as u16;
 
-        Some((avg, self.to_moisture_level(avg)))
-    }
-
-    fn to_moisture_level(&self, value: u16) -> MoistureLevel {
-        let moisture_min = 900;
-        let moisture_max = 1412;
-        let moisture_step = (moisture_max - moisture_min) / 5;
-
-        match value {
-            v if v <= moisture_min + moisture_step => MoistureLevel::VeryWet,
-            v if v <= moisture_min + moisture_step * 2 => MoistureLevel::Wet,
-            v if v <= moisture_min + moisture_step * 3 => MoistureLevel::Normal,
-            v if v <= moisture_min + moisture_step * 4 => MoistureLevel::Dry,
-            _ => MoistureLevel::VeryDry,
-        }
+        Some((avg, MoistureLevel::from_value(avg)))
     }
 }
 
@@ -243,6 +227,22 @@ impl fmt::Display for MoistureLevel {
     }
 }
 
+impl MoistureLevel {
+    pub fn from_value(value: u16) -> Self {
+        let moisture_min = 900;
+        let moisture_max = 1412;
+        let moisture_step = (moisture_max - moisture_min) / 5;
+
+        match value {
+            v if v <= moisture_min + moisture_step => MoistureLevel::VeryWet,
+            v if v <= moisture_min + moisture_step * 2 => MoistureLevel::Wet,
+            v if v <= moisture_min + moisture_step * 3 => MoistureLevel::Normal,
+            v if v <= moisture_min + moisture_step * 4 => MoistureLevel::Dry,
+            _ => MoistureLevel::VeryDry,
+        }
+    }
+}
+
 pub struct Pump<T: OutputPin> {
     pin: PinDriver<'static, T, Output>,
     last_on: Option<DateTime<Local>>,
@@ -259,27 +259,16 @@ impl<T: OutputPin> Pump<T> {
         }
     }
 
-    pub fn turn_on(&mut self) {
+    pub fn on(&mut self) {
         self.pin.set_high().unwrap();
         self.last_on = Some(Local::now());
     }
 
-    pub fn turn_off(&mut self) {
+    pub fn off(&mut self) {
         self.pin.set_low().unwrap();
     }
 
-    pub fn time_since_last_on(&self) -> Option<ChronoDuration> {
-        self.last_on.map(|t| Local::now() - t)
-    }
-
-    pub fn last_on_time_str(&self) -> String {
-        match self.last_on {
-            Some(dt) => dt.format("%H:%M:%S").to_string(),
-            None => "Never".to_string(),
-        }
-    }
-
-    pub fn elapsed_since_last_on_str(&self) -> String {
+    pub fn time_since_last_on_str(&self) -> String {
         match self.time_since_last_on() {
             Some(duration) => {
                 let secs = duration.num_seconds();
@@ -293,5 +282,9 @@ impl<T: OutputPin> Pump<T> {
             }
             None => "Never".to_string(),
         }
+    }
+
+    fn time_since_last_on(&self) -> Option<ChronoDuration> {
+        self.last_on.map(|t| Local::now() - t)
     }
 }
