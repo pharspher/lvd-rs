@@ -1,4 +1,3 @@
-use chrono::{DateTime, Duration as ChronoDuration, Local};
 use esp_idf_hal::adc::attenuation::DB_6;
 use esp_idf_hal::adc::oneshot::config::AdcChannelConfig;
 use esp_idf_hal::adc::oneshot::{AdcChannelDriver, AdcDriver};
@@ -14,7 +13,7 @@ use hd44780_driver::HD44780;
 use std::borrow::Borrow;
 use std::fmt;
 use std::marker::PhantomData;
-use std::{thread, time::Duration};
+use std::{thread, time::Duration, time::Instant};
 
 fn main() {
     esp_idf_sys::link_patches();
@@ -244,7 +243,7 @@ impl MoistureLevel {
 
 pub struct Pump<T: OutputPin> {
     pin: PinDriver<'static, T, Output>,
-    last_on: Option<DateTime<Local>>,
+    last_on: Option<Instant>,
 }
 
 impl<T: OutputPin> Pump<T> {
@@ -260,7 +259,7 @@ impl<T: OutputPin> Pump<T> {
 
     pub fn on(&mut self) {
         self.pin.set_high().unwrap();
-        self.last_on = Some(Local::now());
+        self.last_on = Some(Instant::now());
     }
 
     pub fn off(&mut self) {
@@ -270,7 +269,7 @@ impl<T: OutputPin> Pump<T> {
     pub fn time_since_last_on_str(&self) -> String {
         match self.time_since_last_on() {
             Some(duration) => {
-                let secs = duration.num_seconds();
+                let secs = duration.as_secs();
                 if secs < 60 {
                     format!("{} sec ago", secs)
                 } else if secs < 3600 {
@@ -283,7 +282,7 @@ impl<T: OutputPin> Pump<T> {
         }
     }
 
-    fn time_since_last_on(&self) -> Option<ChronoDuration> {
-        self.last_on.map(|t| Local::now() - t)
+    fn time_since_last_on(&self) -> Option<Duration> {
+        self.last_on.map(|t| Instant::now().duration_since(t))
     }
 }
