@@ -9,7 +9,6 @@ use esp_idf_hal::i2c::*;
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
-use esp_idf_sys as _;
 use hd44780_driver::bus::I2CBus;
 use hd44780_driver::HD44780;
 use std::borrow::Borrow;
