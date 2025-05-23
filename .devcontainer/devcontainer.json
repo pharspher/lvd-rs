@@ -1,6 +1,6 @@
 {
   "name": "lvd-rs",
-  // Select between image and build propieties to pull or build the image.
+  // Select between image and build properties to pull or build the image.
   // "image": "docker.io/espressif/idf-rust:esp32_latest",
   "build": {
     "dockerfile": "Dockerfile",
@@ -26,8 +26,7 @@
         "files.watcherExclude": {
           "**/target/**": true
         },
-        "rust-analyzer.checkOnSave.command": "clippy",
-        "rust-analyzer.checkOnSave.allTargets": false,
+        "rust-analyzer.check.command": "clippy",
         "[rust]": {
           "editor.defaultFormatter": "rust-lang.rust-analyzer"
         }
@@ -48,6 +47,6 @@
     3333,
     8000
   ],
-  "workspaceMount": "source=${localWorkspaceFolder},target=/home/Projects/tdc,type=bind,consistency=cached",
-  "workspaceFolder": "/home/Projects/tdc"
+  "workspaceMount": "source=${localWorkspaceFolder},target=/home/lvd-rs,type=bind,consistency=cached",
+  "workspaceFolder": "/home/lvd-rs"
 }
