@@ -123,10 +123,7 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
         let new_line = Self::pad_line(line);
         for (i, c) in new_line.iter().enumerate() {
             if self.prev_line1[i] != *c {
-                self.lcd.set_cursor_pos(i as u8, &mut self.delay)
-                    .expect("Failed to set cursor position");
-                self.lcd.write_char(*c, &mut self.delay)
-                    .expect("Failed to write character");
+                self.write_char_at(*c, i as u8);
                 self.prev_line1[i] = *c;
             }
         }
@@ -136,10 +133,7 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
         let new_line = Self::pad_line(line);
         for (i, c) in new_line.iter().enumerate() {
             if self.prev_line2[i] != *c {
-                self.lcd.set_cursor_pos(0x40 + i as u8, &mut self.delay)
-                    .expect("Failed to set cursor position");
-                self.lcd.write_char(*c, &mut self.delay)
-                    .expect("Failed to write character");
+                self.write_char_at(*c, 0x40 + i as u8);
                 self.prev_line2[i] = *c;
             }
         }
@@ -156,6 +150,13 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
             result[i] = c;
         }
         result
+    }
+
+    fn write_char_at(&mut self, ch: char, pos: u8) {
+        self.lcd.set_cursor_pos(pos, &mut self.delay)
+            .expect("Failed to set cursor position");
+        self.lcd.write_char(ch, &mut self.delay)
+            .expect("Failed to write character");
     }
 }
 
