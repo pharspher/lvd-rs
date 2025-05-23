@@ -13,12 +13,14 @@ use hd44780_driver::HD44780;
 use std::borrow::Borrow;
 use std::fmt;
 use std::marker::PhantomData;
-use std::{thread, time::Duration, time::Instant};
+use std::thread;
+use std::time::{Duration, Instant};
 
 fn main() {
     esp_idf_sys::link_patches();
 
-    let peripherals = Peripherals::take().expect("Failed to acquire peripherals");
+    let peripherals = Peripherals::take()
+        .expect("Failed to acquire peripherals");
 
     let mut led = Led::new(peripherals.pins.gpio2);
     let mut lcd = Lcd::new(
@@ -28,7 +30,8 @@ fn main() {
     );
     let mut pump = Pump::new(peripherals.pins.gpio26);
 
-    let adc = AdcDriver::new(peripherals.adc1).unwrap();
+    let adc = AdcDriver::new(peripherals.adc1)
+        .expect("Failed to create ADC driver");
     let mut moisture = MoistureSensor::new(&adc, peripherals.pins.gpio36);
 
     loop {
@@ -62,17 +65,18 @@ pub struct Led<T: OutputPin> {
 
 impl<T: OutputPin> Led<T> {
     pub fn new(pin: impl Peripheral<P = T> + 'static) -> Self {
-        let driver = PinDriver::output(pin).unwrap();
+        let driver = PinDriver::output(pin)
+            .expect("Failed to create pin driver");
 
         Self { pin_driver: driver }
     }
 
     pub fn on(&mut self) {
-        self.pin_driver.set_high().unwrap();
+        self.pin_driver.set_high().expect("Failed to turn on LED");
     }
 
     pub fn off(&mut self) {
-        self.pin_driver.set_low().unwrap();
+        self.pin_driver.set_low().expect("Failed to turn off LED");
     }
 }
 
@@ -92,14 +96,17 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
         sda: impl Peripheral<P = U> + 'static,
         scl: impl Peripheral<P = V> + 'static,
     ) -> Self {
-        let i2c = I2cDriver::new(i2c, sda, scl, &config::Config::default()).unwrap();
+        let i2c = I2cDriver::new(i2c, sda, scl, &config::Config::default())
+            .expect("Failed to create I2C driver");
         let mut delay = Ets;
-        let mut lcd = HD44780::new_i2c(i2c, 0x27, &mut delay).unwrap();
-        lcd.reset(&mut delay).unwrap();
+        let mut lcd = HD44780::new_i2c(i2c, 0x27, &mut delay)
+            .expect("Failed to create LCD controller");
+
+        lcd.reset(&mut delay).expect("Failed to reset LCD");
         lcd.set_cursor_visibility(hd44780_driver::Cursor::Invisible, &mut delay)
-            .unwrap();
+            .expect("Failed to set LCD cursor visibility");
         lcd.set_cursor_blink(hd44780_driver::CursorBlink::Off, &mut delay)
-            .unwrap();
+            .expect("Failed to set LCD cursor blink");
 
         Self {
             lcd,
@@ -116,8 +123,10 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
         let new_line = Self::pad_line(line);
         for (i, c) in new_line.iter().enumerate() {
             if self.prev_line1[i] != *c {
-                self.lcd.set_cursor_pos(i as u8, &mut self.delay).unwrap();
-                self.lcd.write_char(*c, &mut self.delay).unwrap();
+                self.lcd.set_cursor_pos(i as u8, &mut self.delay)
+                    .expect("Failed to set cursor position");
+                self.lcd.write_char(*c, &mut self.delay)
+                    .expect("Failed to write character");
                 self.prev_line1[i] = *c;
             }
         }
@@ -127,10 +136,10 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
         let new_line = Self::pad_line(line);
         for (i, c) in new_line.iter().enumerate() {
             if self.prev_line2[i] != *c {
-                self.lcd
-                    .set_cursor_pos(0x40 + i as u8, &mut self.delay)
-                    .unwrap();
-                self.lcd.write_char(*c, &mut self.delay).unwrap();
+                self.lcd.set_cursor_pos(0x40 + i as u8, &mut self.delay)
+                    .expect("Failed to set cursor position");
+                self.lcd.write_char(*c, &mut self.delay)
+                    .expect("Failed to write character");
                 self.prev_line2[i] = *c;
             }
         }
@@ -173,7 +182,8 @@ where
             attenuation: DB_6,
             ..Default::default()
         };
-        let channel = AdcChannelDriver::new(adc, pin, &config).unwrap();
+        let channel = AdcChannelDriver::new(adc, pin, &config)
+            .expect("Failed to create ADC channel driver");
         Self {
             adc,
             channel,
@@ -183,12 +193,12 @@ where
     }
 
     pub fn read(&mut self) -> (u16, MoistureLevel) {
-        let value = self.adc.read(&mut self.channel).unwrap();
+        let value = self.adc.read(&mut self.channel).expect("Failed to read ADC");
         (value, MoistureLevel::from_value(value))
     }
 
     pub fn read_avg(&mut self) -> Option<(u16, MoistureLevel)> {
-        let value = self.adc.read(&mut self.channel).unwrap();
+        let value = self.adc.read(&mut self.channel).expect("Failed to read ADC");
         self.recent_samples[self.sample_idx] = value;
         self.sample_idx = (self.sample_idx + 1) % self.recent_samples.len();
 
@@ -248,8 +258,9 @@ pub struct Pump<T: OutputPin> {
 
 impl<T: OutputPin> Pump<T> {
     pub fn new(pin: impl Peripheral<P = T> + 'static) -> Self {
-        let mut driver = PinDriver::output(pin).unwrap();
-        driver.set_low().unwrap();
+        let mut driver = PinDriver::output(pin)
+            .expect("Failed to create pin driver");
+        driver.set_low().expect("Failed to turn off pump");
 
         Self {
             pin: driver,
@@ -258,12 +269,12 @@ impl<T: OutputPin> Pump<T> {
     }
 
     pub fn on(&mut self) {
-        self.pin.set_high().unwrap();
+        self.pin.set_high().expect("Failed to turn on pump");
         self.last_on = Some(Instant::now());
     }
 
     pub fn off(&mut self) {
-        self.pin.set_low().unwrap();
+        self.pin.set_low().expect("Failed to turn off pump");
     }
 
     pub fn time_since_last_on_str(&self) -> String {
