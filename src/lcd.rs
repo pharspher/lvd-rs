@@ -1,7 +1,11 @@
 use std::marker::PhantomData;
 
-use esp_idf_hal::{delay::Ets, gpio::IOPin, i2c::{config, I2c, I2cDriver}, peripheral::Peripheral};
-use hd44780_driver::{bus::I2CBus, HD44780};
+use esp_idf_hal::gpio::IOPin;
+use esp_idf_hal::delay::Ets;
+use esp_idf_hal::i2c::{config, I2c, I2cDriver};
+use esp_idf_hal::peripheral::Peripheral;
+use hd44780_driver::HD44780;
+use hd44780_driver::bus::I2CBus;
 
 pub struct Lcd<T: I2c, U: IOPin, V: IOPin> {
     lcd: HD44780<I2CBus<I2cDriver<'static>>>,
