@@ -3,8 +3,8 @@ use esp_idf_hal::adc::oneshot::config::AdcChannelConfig;
 use esp_idf_hal::adc::oneshot::{AdcChannelDriver, AdcDriver};
 use esp_idf_hal::adc::Adc;
 use esp_idf_hal::delay::Ets;
-use esp_idf_hal::gpio::*;
-use esp_idf_hal::i2c::*;
+use esp_idf_hal::gpio::{ADCPin, IOPin, Output, OutputPin, PinDriver};
+use esp_idf_hal::i2c::{config, I2c, I2cDriver};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
@@ -18,7 +18,7 @@ use std::{thread, time::Duration, time::Instant};
 fn main() {
     esp_idf_sys::link_patches();
 
-    let peripherals = Peripherals::take().unwrap();
+    let peripherals = Peripherals::take().expect("Failed to acquire peripherals");
 
     let mut led = Led::new(peripherals.pins.gpio2);
     let mut lcd = Lcd::new(
