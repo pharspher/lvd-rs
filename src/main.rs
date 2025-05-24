@@ -20,8 +20,7 @@ use std::time::Duration;
 fn main() {
     esp_idf_sys::link_patches();
 
-    let peripherals = Peripherals::take()
-        .expect("Failed to acquire peripherals");
+    let peripherals = Peripherals::take().expect("Failed to acquire peripherals");
 
     let mut led = Led::new(peripherals.pins.gpio2);
     let mut lcd = Lcd::new(
@@ -31,8 +30,7 @@ fn main() {
     );
     let mut pump = Pump::new(peripherals.pins.gpio26);
 
-    let adc = AdcDriver::new(peripherals.adc1)
-        .expect("Failed to create ADC driver");
+    let adc = AdcDriver::new(peripherals.adc1).expect("Failed to create ADC driver");
     let mut moisture = MoistureSensor::new(&adc, peripherals.pins.gpio36);
 
     loop {

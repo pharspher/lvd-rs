@@ -10,8 +10,7 @@ pub struct Pump<T: OutputPin> {
 
 impl<T: OutputPin> Pump<T> {
     pub fn new(pin: impl Peripheral<P = T> + 'static) -> Self {
-        let mut driver = PinDriver::output(pin)
-            .expect("Failed to create pin driver");
+        let mut driver = PinDriver::output(pin).expect("Failed to create pin driver");
         driver.set_low().expect("Failed to turn off pump");
 
         Self {

@@ -2,9 +2,9 @@ use std::borrow::Borrow;
 use std::fmt;
 
 use esp_idf_hal::adc::attenuation::DB_6;
-use esp_idf_hal::adc::Adc;
 use esp_idf_hal::adc::oneshot::config::AdcChannelConfig;
 use esp_idf_hal::adc::oneshot::{AdcChannelDriver, AdcDriver};
+use esp_idf_hal::adc::Adc;
 use esp_idf_hal::gpio::ADCPin;
 
 pub struct MoistureSensor<'a, A, P>
@@ -30,8 +30,8 @@ where
             attenuation: DB_6,
             ..Default::default()
         };
-        let channel = AdcChannelDriver::new(adc, pin, &config)
-            .expect("Failed to create ADC channel driver");
+        let channel =
+            AdcChannelDriver::new(adc, pin, &config).expect("Failed to create ADC channel driver");
         Self {
             adc,
             channel,
@@ -41,7 +41,10 @@ where
     }
 
     pub fn read(&mut self) -> (u16, MoistureLevel) {
-        let value = self.adc.read(&mut self.channel).expect("Failed to read ADC");
+        let value = self
+            .adc
+            .read(&mut self.channel)
+            .expect("Failed to read ADC");
         (value, MoistureLevel::from_value(value))
     }
 

@@ -1,4 +1,11 @@
-/.vscode
-/.embuild
-/target
-/Cargo.lock
+# VSCode and Rust build artifacts
+.vscode/
+.embuild/
+target/
+Cargo.lock
+
+# Optional: Ignore target/ in any subdir (redundant, but explicit)
+**/target/
+**/.vscode/
+**/.embuild/
+**/Cargo.lock

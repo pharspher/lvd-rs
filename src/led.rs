@@ -7,8 +7,7 @@ pub struct Led<T: OutputPin> {
 
 impl<T: OutputPin> Led<T> {
     pub fn new(pin: impl Peripheral<P = T> + 'static) -> Self {
-        let driver = PinDriver::output(pin)
-            .expect("Failed to create pin driver");
+        let driver = PinDriver::output(pin).expect("Failed to create pin driver");
 
         Self { pin_driver: driver }
     }
