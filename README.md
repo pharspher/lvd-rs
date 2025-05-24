@@ -88,7 +88,7 @@ The project is organized as follows:
 │   ├── lcd.rs            # LCD display driver and functions
 │   ├── led.rs            # LED control logic
 │   ├── main.rs           # Main application entry point and core logic
-│   ├── moister.rs        # Moisture sensor reading and calibration
+│   ├── moisture.rs       # Moisture sensor reading and calibration
 │   └── pump.rs           # Pump control logic
 ├── .gitignore            # Specifies intentionally untracked files that Git should ignore
 ├── Cargo.toml            # Rust package manager configuration (dependencies, project info)
@@ -103,7 +103,7 @@ The project is organized as follows:
     *   `main.rs`: The main application logic, including initialization of peripherals and the primary control loop.
     *   `lcd.rs`: Module for interfacing with the LCD1602 display.
     *   `led.rs`: Module for controlling the status LED.
-    *   `moister.rs`: Module for reading and interpreting data from the soil moisture sensor.
+    *   `moisture.rs`: Module for reading and interpreting data from the soil moisture sensor.
     *   `pump.rs`: Module for controlling the water pump.
 *   **`Cargo.toml`**: The manifest file for this Rust package. It contains metadata such as package name, version, authors, and dependencies.
 *   **`wokwi.toml`**: Configuration file for the Wokwi online ESP32 simulator.
@@ -133,7 +133,7 @@ The system operates in a continuous loop defined in `src/main.rs`:
     *   The status LED is turned off.
     *   The system pauses again before starting a new cycle.
 
-This cycle ensures that the plant's moisture is regularly checked and water is provided as needed. The specific thresholds for moisture levels and pump duration can be adjusted in the source code (`src/moister.rs` and `src/main.rs`).
+This cycle ensures that the plant's moisture is regularly checked and water is provided as needed. The specific thresholds for moisture levels and pump duration can be adjusted in the source code (`src/moisture.rs` and `src/main.rs`).
 
 ## Simulation with Wokwi
 
