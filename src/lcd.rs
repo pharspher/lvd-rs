@@ -31,13 +31,15 @@ impl<T: I2c, U: IOPin, V: IOPin> Lcd<T, U, V> {
         let i2c = I2cDriver::new(i2c, sda, scl, &config::Config::default())
             .expect("Failed to create I2C driver");
         let mut delay = Ets;
-        let mut controller = HD44780::new_i2c(i2c, 0x27, &mut delay)
-            .expect("Failed to create LCD controller");
+        let mut controller =
+            HD44780::new_i2c(i2c, 0x27, &mut delay).expect("Failed to create LCD controller");
 
         controller.reset(&mut delay).expect("Failed to reset LCD");
-        controller.set_cursor_visibility(hd44780_driver::Cursor::Invisible, &mut delay)
+        controller
+            .set_cursor_visibility(hd44780_driver::Cursor::Invisible, &mut delay)
             .expect("Failed to set LCD cursor visibility");
-        controller.set_cursor_blink(hd44780_driver::CursorBlink::Off, &mut delay)
+        controller
+            .set_cursor_blink(hd44780_driver::CursorBlink::Off, &mut delay)
             .expect("Failed to set LCD cursor blink");
 
         Self {

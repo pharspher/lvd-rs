@@ -4,9 +4,9 @@ use led::Led;
 mod lcd;
 use lcd::Lcd;
 
-mod moister;
-use moister::MoistureLevel;
-use moister::MoistureSensor;
+mod moisture;
+use moisture::MoistureLevel;
+use moisture::MoistureSensor;
 
 mod pump;
 use pump::Pump;
