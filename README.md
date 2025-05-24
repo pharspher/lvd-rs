@@ -160,25 +160,3 @@ The repository includes:
 Once the files are set up, Wokwi should automatically use the `diagram.json` to arrange the components and `wokwi.toml` to load the firmware. You can then run the simulation to see the LCD output and interact with potential inputs (though this project primarily relies on sensor input which Wokwi can simulate).
 
 *Note: Simulation of specific analog sensor behavior might require adjustments in Wokwi or the code for realistic results.*
-
-## Contributing
-
-Contributions are welcome! If you have suggestions for improvements, new features, or bug fixes, please feel free to:
-
-1.  Fork the repository.
-2.  Create a new branch for your changes (`git checkout -b feature/your-feature-name`).
-3.  Make your changes and commit them with clear messages.
-4.  Push your branch to your fork (`git push origin feature/your-feature-name`).
-5.  Open a pull request against the main repository.
-
-Please ensure your code adheres to the existing style and that any new features are appropriately documented.
-
-## License
-
-This project is open-source. Please add your preferred license file (e.g., `LICENSE.md`) to the repository and update this section accordingly.
-
-For example:
-This project is licensed under the MIT License - see the `LICENSE.md` file for details.
-
-*Or, if you prefer Apache 2.0:*
-This project is licensed under the Apache License, Version 2.0 - see the `LICENSE.md` file for details.
